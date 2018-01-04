@@ -4,6 +4,8 @@ logs
 .DS_Store
 
 # data
+MNIST_data
+*_data
 samples
 *checkpoints/
 *.npy
