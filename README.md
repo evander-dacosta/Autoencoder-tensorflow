@@ -1,10 +1,10 @@
-# Multi-Layer Perceptron (MLP) 
+# Denoising Autoencoder 
 
-Tensorflow implementation of a Multi-layer Perceptron.
+Tensorflow implementation of a Denoising Autoencoder.
 
 This implementation contains:
 
-1. MLP
+1. Autoencoder
 2. Config file to tune hyperparams
 
 
