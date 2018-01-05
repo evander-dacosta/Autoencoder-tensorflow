@@ -8,56 +8,60 @@ Created on Thu Jan  4 13:10:37 2018
 import tensorflow as tf
 import numpy as np
 from tqdm import tqdm
-from ops import Dense
+from ops import Dense, corruption
 from base_model import BaseModel
 
-class MLP(BaseModel):
+class Autoencoder(BaseModel):
     def __init__(self, config, sess):
         self.sess = sess
         self.config = config
         
-        self.input_shape, self.output_shape, self.layer_defs, \
-        self.output_activation = config.input_shape, config.output_shape, \
-                                      config.layers, config.output_activation
+        self.input_shape, self.hidden_shape = \
+            config.input_shape, config.hidden_shape
+        
+        self.hidden_activation, self.output_activation = \
+            config.hidden_activation, config.output_activation
+            
+        self.tied_weights = config.tied_weights
         
         #self.cost_fn = config.cost_function
-        self.cost_fn = tf.nn.softmax_cross_entropy_with_logits 
+        self.cost_fn = tf.nn.sigmoid_cross_entropy_with_logits 
+        self.p = self.config.corruption
              
 
-        super(MLP, self).__init__(config, sess)
+        super(Autoencoder, self).__init__(config, sess)
         self.build()
              
     def build(self):
         self.w = {}
         self.layers = []
         
-        with tf.variable_scope('mlp'):
-            self.input = tf.placeholder(dtype=tf.float32,
+        with tf.variable_scope('autoencoder'):
+            self.input = tf.placeholder(dtype=tf.float32, 
                                         shape=self.input_shape,
                                         name='input')
-            self.target = tf.placeholder(dtype=tf.float32,
-                                         shape=[None, self.output_shape],
-                                         name='output')
-            for i, layer in enumerate(self.layer_defs):
-                if(i == 0):
-                    x = self.input
-                else:
-                    x = self.layers[-1]
-                    
-                l, self.w['layer_{}_w'.format(i)], self.w['layer_{}_b'.format(i)] = \
-                    Dense(x, output_size=layer.get('n'),
-                          activation_fn=layer.get('activation'),
-                          name='mlp_layer_{}'.format(i+1))
-                self.layers.append(l)
-                
+            
+            self.corrupted_input = corruption(self.input, self.p)
+            
+            self.hidden, self.w['hidden_w'], self.w['hidden_b'] = \
+                       Dense(self.corrupted_input, self.hidden_shape,
+                             activation_fn=self.hidden_activation,
+                             name='hidden')
+                       
+            if(self.tied_weights):
+                w = tf.transpose(self.w['hidden_w'], perm=[1, 0])
+            else:
+                w = None
+            
             self.output, self.w['output_w'], self.w['output_b'] = \
-                       Dense(self.layers[-1], self.output_shape,
-                             activation_fn=self.output_activation)
+                       Dense(self.hidden, self.input_shape[-1],
+                             activation_fn=self.output_activation,
+                             w = w, name='output')
             
             
         with tf.variable_scope('optimiser'):
             self.optimiser = tf.train.AdamOptimizer()
-            self.loss = tf.reduce_mean(self.cost_fn(labels=self.target, 
+            self.loss = tf.reduce_mean(self.cost_fn(labels=self.input, 
                                                     logits=self.output))
             self.min_op = self.optimiser.minimize(self.loss)
             
@@ -92,19 +96,18 @@ class MLP(BaseModel):
         for summary_str in summary_str_lists:
             self.writer.add_summary(summary_str, step)
              
-    def fit(self, x, y, n_epochs=10):
+    def fit(self, x):
+        n_epochs = self.config.n_epochs
         batchsize = self.config.batchsize
-        n_iter = int(len(x) / float(batchsize)) + 1
+        n_iter = int(len(x) / float(batchsize))
         
         
         for epoch in range(n_epochs):
             losses = []
             for i in tqdm(range(n_iter)):
                 x_train = x[i*batchsize : (i+1)*batchsize]
-                y_train = y[i*batchsize : (i+1)*batchsize]
                 loss, _ = self.sess.run([self.loss, self.min_op], feed_dict={
-                                                        self.input:x_train,
-                                                        self.target:y_train
+                                                        self.input:x_train
                                                         })
                 losses.append(loss)
             print("Epoch {}, loss {}".format(epoch, np.mean(losses)))
@@ -116,5 +119,5 @@ class MLP(BaseModel):
             
     
     def predict(self, x):
-        out = tf.argmax(self.output, axis=-1)
+        out = tf.nn.sigmoid(self.output)
         return self.sess.run(out, feed_dict={self.input: x})

@@ -4,17 +4,24 @@
 
 import tensorflow as tf
 import numpy as np
+import matplotlib.pyplot as plt
 import os
 import inspect
-from model import MLP
+from model import Autoencoder
 from config import Config
 
 
-def get_accuracy(test_data, model):
-    y_pred = model.predict(test_data[0])
-    y_true = np.argmax(test_data[1], axis=-1)
-    n_matches = (y_pred == y_true)
-    return np.mean(n_matches)
+def plot_reconstruction(model, test_data, index):
+    image = test_data[index:index+1]
+    reconstruction = model.predict(image).reshape((28, 28))
+    image = image.reshape((28, 28))
+    plt.figure()
+    plt.subplot(211)
+    plt.imshow(image)
+    plt.subplot(212)
+    plt.imshow(reconstruction)
+    plt.show()
+
 
 def main(_):
     from tensorflow.examples.tutorials.mnist import input_data
@@ -24,13 +31,11 @@ def main(_):
     config = Config()
     
     sess = tf.Session()
-    mlp = MLP(config, sess)
-    mlp.fit(mnist.train.images, mnist.train.labels)
+    model = Autoencoder(config, sess)
+    model.fit(mnist.train.images)
     
     print("[*] Finished Training")
-    print("Test accuracy: {}".format(get_accuracy([mnist.test.images,
-                                          mnist.test.labels], mlp)))
-    return
+    return model, mnist
 
 
 if __name__ == "__main__":

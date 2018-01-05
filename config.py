@@ -24,7 +24,11 @@ class Config:
     """
     name = 'mnist_mlp_1'
     input_shape = [None, 784]
-    layers = [{'n':32, 'activation':'tanh'}]
-    output_shape = 10
+    hidden_shape = 32
+    hidden_activation='relu'
     output_activation = 'linear'
     batchsize = 32
+    
+    tied_weights = True
+    corruption = 0.4
+    n_epochs = 20
